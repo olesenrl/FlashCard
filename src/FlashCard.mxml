@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:WindowedApplication xmlns:mx="http://www.adobe.com/2006/mxml"
+						width="100%"
+						height="100%"
+						layout="vertical"
+						creationComplete="init()"
+						xmlns:view="view.*">
+	<mx:VBox width="100%"
+			 height="100%"
+			 horizontalAlign="center"
+			 verticalAlign="middle">
+
+		<mx:Text text="{cardModel.displayLabel}"
+				 fontWeight="bold"
+				 fontSize="30"
+				 color="#FF0000"/>
+		<view:TextToSpeechConvertor id="convertor"
+									click="{convertor.sendRequest(cardModel.displayLabel)}"/>
+
+	</mx:VBox>
+	<mx:HBox width="100%">
+		<mx:Button label="Delete Card"
+				   enabled="{cardModel.displayIndex != -1}"
+				   click="deleteItemAndWriteToFile(cardModel.displayIndex)"/>
+		<mx:HBox width="100%"
+				 horizontalAlign="right">
+
+			<mx:Button label="Next Card"
+					   click="{displayItem()}"/>
+
+			<mx:Button label="Choose Another File"
+					   click="{chooseAnotherFile()}"/>
+		</mx:HBox>
+	</mx:HBox>
+	<mx:HBox width="100%">
+		<mx:TextInput id="line" width="250">
+			<mx:enter>
+				<![CDATA[
+					if(line.text.length > 0){
+						lines.addItem(line.text);
+						FileWrapper.writeLinesToFile(lines.source , prefrences.filePath);
+						line.text = null;
+					}
+				]]>
+			</mx:enter>
+		</mx:TextInput>
+
+	</mx:HBox>
+
+	<mx:Script>
+		<![CDATA[
+			import storage.FileWrapper;
+			import mx.events.MenuEvent;
+			import RandomDisplayer.Displayer;
+			import model.CardsModel;
+
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import storage.FileSerializer;
+			import storage.Preferences;
+			import flash.net.navigateToURL;
+
+
+			public function deleteLine(line:Number):void
+			{
+
+			}
+
+			public const fileName:String="prefrences";
+
+			[Bindable]
+			private var cardModel:CardsModel=CardsModel.getInstance();
+
+			private var file:File;
+
+			private var menuRoot:NativeMenu=new NativeMenu();
+
+			private function onItemClick(event:MenuEvent):void
+			{
+				var action:String=event.item.attribute("action")[0].toString();
+				if (action == "nextCard")
+				{
+					displayItem();
+				}
+				else
+				{
+					openFile();
+				}
+			}
+
+			private function chooseAnotherFile():void
+			{
+				openFile();
+			}
+
+			private function openFile():void
+			{
+				file=new File();
+				file.addEventListener(Event.SELECT, file_select);
+				file.browseForOpen("Please select a file...");
+			}
+
+			private var lines:ArrayCollection;
+
+			private function read(file:File):void
+			{
+				lines=new ArrayCollection(FileWrapper.readFileInLines(file));
+				lines.filterFunction=removeEmptyLines;
+				lines.refresh();
+
+				if (lines.length == 0)
+				{
+					Alert.show("File has no lines");
+					return;
+				}
+			}
+
+
+			private function saveTheNewPreferences(filePath:String):void
+			{
+				prefrences=new Preferences();
+				prefrences.filePath=filePath
+				FileSerializer.writeObjectToFile(prefrences, fileName);
+			}
+
+			private function file_select(event:Event):void
+			{
+				file=event.currentTarget as File;
+				saveTheNewPreferences(file.nativePath);
+				read(file);
+				displayItem();
+			}
+
+			private function removeEmptyLines(item:String):Boolean
+			{
+				if (item == null || item.length == 0)
+				{
+					return false;
+				}
+				return true;
+			}
+
+			private function displayItem():void
+			{
+				if (lines.length > 0)
+				{
+					Displayer.display(lines);
+					convertor.sendRequest(cardModel.displayLabel);
+				}
+			}
+
+			private var prefrences:Preferences;
+
+			private function getMenu():NativeMenu
+			{
+				var options:NativeMenu=new NativeMenu();
+
+				var nextCard:NativeMenuItem=new NativeMenuItem("Next Card", false);
+				nextCard.addEventListener(Event.SELECT, displayItem);
+				options.addItem(nextCard);
+
+				var chooseFile:NativeMenuItem=new NativeMenuItem("Choose Another File", false);
+				chooseFile.addEventListener(Event.SELECT, chooseAnotherFile);
+				options.addItem(chooseFile);
+
+				return options;
+			}
+
+			private function onInvokeEvent(event:Event):void
+			{
+				displayItem();
+			}
+
+			private function deleteItemAndWriteToFile(index:Number):void
+			{
+				lines.removeItemAt(index);
+				FileWrapper.writeLinesToFile(lines.source, prefrences.filePath);
+				displayItem();
+			}
+
+			private function readFileAndDisplayItem():void
+			{
+				prefrences=FileSerializer.readObjectFromFile(fileName) as Preferences;
+
+				if (prefrences == null || (prefrences != null && (prefrences.filePath == null || prefrences.filePath.length == 0)))
+				{
+					openFile();
+				}
+				else
+				{
+					file=File.applicationStorageDirectory.resolvePath(prefrences.filePath);
+					read(file);
+				}
+			}
+
+			private function init():void
+			{
+				trace(File.applicationStorageDirectory.nativePath);
+				nativeApplication.startAtLogin=true;
+				nativeApplication.addEventListener(InvokeEvent.INVOKE, onInvokeEvent);
+				this.width=Screen.mainScreen.visibleBounds.width - 200;
+				readFileAndDisplayItem();
+			}
+		]]>
+	</mx:Script>
+</mx:WindowedApplication>

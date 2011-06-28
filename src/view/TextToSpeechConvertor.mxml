@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml">
+	<mx:Button label="Read The Text"
+			   id="btn"/>
+
+	<mx:String id="currentFileid"/>
+
+	<mx:Object id="req"
+			   username="james@jamesward.org"
+			   password="password"/>
+
+	<mx:HTTPService id="srv"
+					url="http://ws.ispeech.org/api/rest/1.5"
+					method="POST"
+					fault="onFault(event)"
+					resultFormat="text">
+		<mx:result>
+			<![CDATA[
+        var r:Object = URLUtil.stringToObject(event.result as String, "&");
+        
+        if (r != null)
+        {
+          if (r.result == "success")
+          {
+            if (r.status == "finished")
+            {
+              var stream:URLRequest = new URLRequest(srv.url);
+              stream.method = URLRequestMethod.POST;
+              stream.data = new URLVariables();
+              stream.data.username = req.username;
+              stream.data.password = req.password;
+              stream.data.action = "download";
+              if (r.fileid != null)
+              {
+                stream.data.fileid = r.fileid;
+              }
+              else
+              {
+                stream.data.fileid = currentFileid;
+              }
+              
+              var sound:Sound = new Sound(stream);
+              sound.play();
+              conversionDone("Read The Text");
+            }
+            else if ((r.status == "waiting") || (r.status == "working"))
+            {
+              if (r.fileid != null)
+              {
+                checkStatus(r.fileid);
+              }
+              else
+              {
+                checkStatus(currentFileid);
+              }
+            }
+          }
+          else
+          {
+            Alert.show((r.message as String).replace(/\+/g, " "), "Error Converting Text to Speech");
+          }
+        }
+    ]]>
+		</mx:result>
+	</mx:HTTPService>
+	<mx:Script>
+	
+
+			import mx.rpc.events.FaultEvent;
+		import mx.controls.Alert;
+		import mx.utils.URLUtil;
+
+		private function checkStatus(fileid:String):void
+		{
+		currentFileid=fileid;
+
+		var t:Timer=new Timer(100, 1);
+		t.addEventListener(TimerEvent.TIMER, function(event:TimerEvent):void
+		{
+		req.action="status";
+		req.fileid=currentFileid;
+		srv.send(req);
+		});
+		t.start();
+		}
+
+		public function onFault(event:FaultEvent):void{
+
+		Alert.show(event.fault.message);
+		conversionDone("Read The Text");
+		}
+		public function sendRequest(text:String):void{
+		if(!btn.enabled){
+		return;
+		}
+		req.action="convert";
+		req.text=text;
+		req.voice="engfemale2";
+		srv.send(req);
+		converting("Converting...");
+		}
+
+		public function converting(msg:String):void{
+		btn.label = msg;
+		if(btn.enabled == true){
+		btn.enabled = false;
+		}
+		}
+
+		public function conversionDone(msg:String):void{
+		btn.label = msg;
+		btn.enabled = true;
+		}
+	</mx:Script>
+</mx:HBox>
